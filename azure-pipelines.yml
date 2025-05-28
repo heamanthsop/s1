@@ -1,19 +1,50 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- main
+- main  # Trigger the pipeline on changes to the main branch
 
 pool:
-  name: 'NEW POOL' 
+  name: 'NEW POOL'  # Name of your self-hosted agent pool
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+variables:
+  azureSubscription: 'CICDAzureConnect'  # Azure Service Connection name
+  azureResourceGroup: 'CICD'  # Resource Group name
+  location: 'EastUS'  # Azure region
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+jobs:
+- job: CreateVM
+  steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(azureSubscription)  # Azure service connection
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          # Log into Azure using the provided service connection
+          echo "Logging into Azure..."
+          az account set --subscription $(azureSubscription)
+
+          # Create the resource group (if it doesn't already exist)
+          az group create --name $(azureResourceGroup) --location $(location)
+
+          # Create the VM
+          echo "Creating VM..."
+          az vm create \
+            --resource-group $(azureResourceGroup) \
+            --name MyVM \
+            --image UbuntuLTS \
+            --admin-username azureuser \
+            --admin-password 'YourPassword123!' \
+            --size Standard_DS1_v2 \
+            --location $(location) \
+            --authentication-type password \
+            --public-ip-sku Standard
+
+    - task: AzureCLI@2
+      inputs:
+        scriptType: 'pscore'
+        scriptLocation: 'scriptPath'
+        scriptPath: './scripts/DeployVM.ps1'  # Ensure the path is correct
+        addSpnToEnvironment: true
+        useGlobalConfig: true
+        failOnStandardError: true
+        powerShellIgnoreLASTEXITCODE: true
+        keepAzSessionActive: true
